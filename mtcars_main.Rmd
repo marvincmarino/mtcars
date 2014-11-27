@@ -1,0 +1,277 @@
+---
+title: "mtcars Dataset Analysis"
+author: "Marvin Marino"
+date: "Wednesday, November 19, 2014"
+output: html_document
+---
+
+### Preamble:
+
+This document focuses on the analysis of the R dataset mtcars.
+
+Description of dataset mtcars can be found in internet. Link: https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/mtcars.html
+
+### Research questions:
+
+- Question 1: is a car with automatic or manual transmission better in term of miles per gallons (mpg)?
+
+- Question 2: quantify the mpg difference between automatic and manual transmission.
+
+### Analysis structure:
+I will address both issues from different angles employing a set of methodologies that can be broadly grouped as follows:
+
+1. Univariate analysis on target variable (mpg).
+
+2. Bivariate analysis on target variable and relevant covariates.
+
+3. Multivariate analysis: estimation a set of regression models for the conditional mean of mpg. For model selection, I compare the Best Fit and Forward Stepwise Selection procedures.
+
+### Chapter 1. Univariate analysis 
+In this chapter I focus on analyzing the target variable (mpg) alone by splitting the observations into two groups, i.e. cars wtih automatic or manual transmission. I will execute 3 analysis:
+
+1. Compute sample means by group (i.e. transmission automatic vs. manual).
+
+2. Validate if the difference of the group means is statistically significant by computing a 95% confidence interval for means difference.
+
+3. Verify the robustness of this result by executing a permutation test with Monte Carlo trials that shuffle the allocation group > mpg.
+
+### 1.1 Sample means by group
+
+Initially a perform a subset of the data by group.
+
+```{r}
+#### generate subset: automatic and manual cars ####
+cars_auto = subset(mtcars, am == 0)
+cars_manu = subset(mtcars, am == 1)
+
+# dimensions
+dim(mtcars)
+dim(cars_auto); dim(cars_manu)
+
+# sample means mpg by group
+mean(cars_auto$mpg); mean(cars_manu$mpg)
+sd(cars_auto$mpg); sd(cars_manu$mpg)
+
+# % increase in mpg based on the sample mean
+(mean(cars_manu$mpg) - mean(cars_auto$mpg))/mean(cars_auto$mpg)
+
+#### mpg plots ####
+par(mfrow = c(2, 1))
+hist(cars_auto$mpg, main = "Distribution mpg - automatic transmission", xlab = "mpg")
+abline(v = mean(cars_auto$mpg), col = "red")
+hist(cars_manu$mpg, main = "Distribution mpg - manual transmission", xlab = "mpg")
+abline(v = mean(cars_manu$mpg), col = "red")
+```
+
+Conclusions: 
+
+- mpg empirical mean of cars with manual transmission is greater than cars with automatic transmission, however has also higher variance.
+
+- `Based on this result alone can be concluded that on average cars with manual transmission have 42% mileage than cars with automatic transmission. >>> is correct to conclude this?`
+
+### 1.2 95% confidence interval for the difference of the group means
+
+The analysis on sample means concludes that sample mean of mpg for car with manual trasmission is greater than automatic:
+
+Now I test if this difference (i.e. in the sample means) is statistically significant (from zero).
+
+I execute a t.test for unpaired samples: I assume inequality in variances for the two groups for the calculation of the pooled variance.
+
+
+```{r}
+#### 95% confidence interval for mean difference ####
+
+# Question: is the sample mean difference significant?
+t.test(cars_manu$mpg, cars_auto$mpg, paired = F, var.equal = F)
+```
+
+Conclusions:
+
+- The 95% interval does not contain 0
+
+- The sample mean difference is significant at 95% (p-value 0.1%).
+
+
+
+### 1.3 Permutation test on groups association
+I test the robustness of result obtained in the previous step.
+
+I execute a permutation test by shuffling the allocation mean > groups with 100000 trials of Montecarlo simulation.
+
+Code:
+
+```{r, results='hide'}
+#### Permutation test ####
+# what if I shuffle the am groups and calculate the mean?
+
+# get target variable and group vectors
+y = mtcars$mpg
+group = mtcars$am
+y; group
+
+# baseline group means and difference
+baselineMeans = tapply(mtcars$mpg, mtcars$am, mean)
+baselineMeansDiff = baselineMeans[2] - baselineMeans[1]
+
+tStat = function(w, g) mean(w[g == 1]) - mean(w[g == 0])
+observedDiff = tStat(y, group)
+
+# check if function works - should be 0:
+baselineMeansDiff - observedDiff
+
+# execute shuffle:
+permutations = sapply(1:100000, function(i) tStat(y, sample(group)))
+```
+
+Plotting experiment results:
+
+```{r, echo=TRUE}
+# shuffle experiment results plots:
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 2))
+hist(permutations, main = "Distribution of shuffled group mean differences") # distribution of difference of averages of permuted groups
+plot(permutations, type = "b", main = "Shuffled group mean trials", xlab = "trial", ylab = "shuffled group mean differences", ylim = c(-14, 14))
+abline(h = observedDiff, col = "red", lwd = 3)
+```
+
+```{r}
+# there is not even 1 case where by chance I get a difference value greater than the observed!
+mean(permutations > observedDiff)
+```
+
+CONCLUSIONS:
+
+- Out of 100000 trials only the 0.002% have breached the observed values for the difference in group empirical means.
+
+- We can conclude that the empirical means difference of groups is robust with regards to random reshuffling and in not likely to be generated by pure chance. `is this correct?`
+
+
+### Chapter 2. Bivariate analysis 
+In this chapter I analyse the behavior of target variable (mpg) conditional on a set of explanatory variables.
+
+
+```{r}
+#### generate subset: automatic and manual cars ####
+cars_auto = subset(mtcars, am == 0)
+cars_manu = subset(mtcars, am == 1)
+
+#### Visual inspection of all covariates ####
+pairs(mtcars)
+
+#### 4 bivariate analysis: hp / wt / drat / disp ####
+par(mfrow = c(2, 2), mar = c(2, 3, 2, 3))
+
+# plot1
+with(mtcars, plot(hp, mpg, type = "n", main = "mpg vs. hp - by transmission type")) # no data
+with(cars_auto, points(hp, mpg, col = "red", pch = 20))
+with(cars_manu, points(hp, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+model1_auto = lm(mpg ~ hp, data = cars_auto)
+model1_manu = lm(mpg ~ hp, data = cars_manu)
+abline(model1_auto, col = "red", lwd = 2)
+abline(model1_manu, col = "blue", lwd = 2)
+abline(v = 175, lty = 2)
+
+# plot2
+with(mtcars, plot(wt, mpg, type = "n", main = "mpg vs. weight - by transmission type")) # no data
+with(cars_auto, points(wt, mpg, col = "red", pch = 20))
+with(cars_manu, points(wt, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+abline(v = 3.2, lty = 2)
+
+# plot 3
+with(mtcars, plot(drat, mpg, type = "n", main = "mpg vs. drat - by transmission type")) # no data
+with(cars_auto, points(drat, mpg, col = "red", pch = 20))
+with(cars_manu, points(drat, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+model2_auto = lm(mpg ~ drat, data = cars_auto)
+model2_manu = lm(mpg ~ drat, data = cars_manu)
+abline(model2_auto, col = "red", lwd = 2)
+abline(model2_manu, col = "blue", lwd = 2)
+abline(v = 175, lty = 2)
+
+# plot 4
+with(mtcars, plot(disp, mpg, type = "n", main = "mpg vs. disp - by transmission type")) # no data
+with(cars_auto, points(disp, mpg, col = "red", pch = 20))
+with(cars_manu, points(disp, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+labels = with(mtcars, paste(as.character(disp), as.character(mpg), sep = ",")) # generate point labels
+with(mtcars, text(disp, mpg, labels = labels, cex = 0.7, pos = 2))
+abline(v = 167.6, lty = 2)
+```
+
+CONCLUSIONS:
+
+- mpg vs. hp: linear negative relation: as horse power of the engine (hp) increases, the mileage (mpg) reduces. Cars with manual transmission seems however to be more efficient: the group restricted regression (blue) has a higher intercept. It has to be highlighted however that the parameters of blue regression might be influenced by two extreme values with high hp - the regression should be re-estimated by removing the two datapoints.
+
+- mpg vs. weight: negative relation, the functional form might be non-linear (hyperbolic ?), as weight of the car increases, the mileage decreases. The weight variable seems to provide perfect separation between manual and automatic transmission cars, i.e. all cars that are heavier than 3.2 ton (circa) are automatic and vice-versa.
+
+- mpg vs. drat: the functional form is not clear: it appears also to be increase in the variance as the real axel ratio (drat) increases. To verify this a regression model using all observations has to be estimated and analyse the residuals for verifying if the model is heteroskedastic.
+
+- mpg vs. disp: seems to have a negative (hyperbolic ?) relation: as the displacement (disp) of the engine increases, the mileage decreases. Also in this case it seems that disp accounts for perfect separation in the transmission type: almost all cars with disp > 180 are automatic.
+
+
+
+### 3. Multivariate analysis
+In this chapter I run a set of regression models for estimating the impact of some predictors on the mpg. 
+
+For model selection I employ the following techniques:
+
+1. Manual selection of regressors: I hand pick regressors for 
+
+2. Best fit procedure:
+
+3. Forward stepwise procedure:
+
+
+### 3.1 Manual selection
+
+Analysis of covariance matrix:
+
+```{r, results='hide'}
+### analyse covariance matrix for regressor selection:
+z <- cor(mtcars)
+require(lattice)
+levelplot(z)
+````
+
+I start with a model including all regressors.
+
+```{r}
+#### lm with all variables / no split ####
+# prepare data
+data = mtcars
+data$am = as.factor(data$am)
+
+model1 = lm(mpg ~ ., data = data)
+
+# get results
+summary(model1)
+
+# plot residual analysis
+par(mfrow = c(2, 2))
+plot(model1)
+# plot hist
+par(mfrow = c(1, 1))
+hist(model1$residuals)
+# normality test on residuals
+shapiro.test(model1$residuals)
+```
+
+A model with only transmission:
+```{r}
+# only am
+data = mtcars
+data$am = as.factor(data$am)
+model2 = lm(mpg ~ am, data = data)
+
+# get results
+summary(model2)
+```
+
+Observations:
+
+- the intercept is 17.15: exactly the same mean of mpg for cars with automatic transmission
+
+- the coefficient of am is 7.24: exactly the difference of mpg means for cars with manual / automatic transmission
+
+- the sum of intercept and am coefficient gives the mpg unconditional mean for cars with manual transmission
