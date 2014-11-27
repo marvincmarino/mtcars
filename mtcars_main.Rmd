@@ -234,7 +234,64 @@ require(lattice)
 levelplot(z)
 ````
 
-I start with a model including all regressors.
+A model with only transmission:
+```{r}
+# only am
+data = mtcars
+data$am = as.factor(data$am)
+model2 = lm(mpg ~ am, data = data)
+
+# get results
+summary(model2)
+```
+
+Observations:
+
+- the intercept is 17.15: exactly the same mean of mpg for cars with automatic transmission
+
+- the coefficient of am is 7.24: exactly the difference of mpg means for cars with manual / automatic transmission
+
+- the sum of intercept and am coefficient gives the mpg unconditional mean for cars with manual transmission
+
+### 3.2 Best Fit Procedure
+
+I run the best fit procedure for identifying the optimal number of regressors that minimises the cp, which is (...)
+
+```{r}
+#### model selection using leaps ####
+library(leaps)
+data = mtcars
+data$log_mpg = log(data$mpg) # add log of y
+
+#### method 1. best fit ####
+regfit.full = regsubsets(log_mpg ~. , data = data, nvmax = 10)
+reg.summary = summary(regfit.full)
+reg.summary
+```
+
+Plotting the ....
+
+```{r}
+# how I select the optimal number of variables?
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "cp", type = "b")
+```
+
+### 3.3 Forward Stepwise Procedure
+
+```{r}
+regfit.fwd = regsubsets(log_mpg ~ ., data = data, nvmax = 10, method = "forward")
+summary(regfit.fwd)
+```
+
+Plotting the ....
+
+```{r}
+plot(regfit.fwd, scale = "Cp")
+```
+
+### *** Appendix ****
+
+A model including all regressors.
 
 ```{r}
 #### lm with all variables / no split ####
@@ -256,22 +313,3 @@ hist(model1$residuals)
 # normality test on residuals
 shapiro.test(model1$residuals)
 ```
-
-A model with only transmission:
-```{r}
-# only am
-data = mtcars
-data$am = as.factor(data$am)
-model2 = lm(mpg ~ am, data = data)
-
-# get results
-summary(model2)
-```
-
-Observations:
-
-- the intercept is 17.15: exactly the same mean of mpg for cars with automatic transmission
-
-- the coefficient of am is 7.24: exactly the difference of mpg means for cars with manual / automatic transmission
-
-- the sum of intercept and am coefficient gives the mpg unconditional mean for cars with manual transmission

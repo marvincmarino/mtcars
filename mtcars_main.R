@@ -272,6 +272,17 @@ confint(model4, conf.level = 0.95)
 
 exp(model4$coef[9])
 
+#### manual inclusion for logs ####
+data$log_mpg = log(data$mpg) # add log of y
+
+model5 = lm(log_mpg ~ hp + wt + am, data = data)
+
+summary(model5)
+
+confint(model5, conf.level = 0.95)
+
+exp(model5$coef[4])
+
 #### CON: interpr - you have a 4% increase in mpg when car has manual drive
 
 # try the best subset selection approach
@@ -292,3 +303,16 @@ shapiro.test(u_hat)
 confint(model5, conf.level = 0.95)
 
 exp(model5$coef[4])
+
+
+#### model selection using leaps ####
+library(leaps)
+data = mtcars
+data$log_mpg = log(data$mpg) # add log of y
+
+#### method 1. best fit ####
+regfit.full = regsubsets(log_mpg ~. , data = data)
+reg.summary = summary(regfit.full)
+
+# how I select the optimal number of variables?
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "cp", type = "b")
